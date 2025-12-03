@@ -11,14 +11,18 @@ import ir.msob.manak.core.service.jima.service.IdService;
 import ir.msob.manak.domain.model.memory.memory.Memory;
 import ir.msob.manak.domain.model.memory.memory.MemoryCriteria;
 import ir.msob.manak.domain.model.memory.memory.MemoryDto;
+import ir.msob.manak.domain.model.memory.model.MemoryQuery;
+import ir.msob.manak.domain.model.memory.model.VectorDocument;
 import jakarta.validation.Valid;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 @Service
 public class MemoryService extends DomainCrudService<Memory, MemoryDto, MemoryCriteria, MemoryRepository>
@@ -26,11 +30,13 @@ public class MemoryService extends DomainCrudService<Memory, MemoryDto, MemoryCr
 
     private final ModelMapper modelMapper;
     private final IdService idService;
+    private final MemoryVectorRepository memoryVectorRepository;
 
-    protected MemoryService(BeforeAfterComponent beforeAfterComponent, ObjectMapper objectMapper, MemoryRepository repository, ModelMapper modelMapper, IdService idService) {
+    protected MemoryService(BeforeAfterComponent beforeAfterComponent, ObjectMapper objectMapper, MemoryRepository repository, ModelMapper modelMapper, IdService idService, MemoryVectorRepository memoryVectorRepository) {
         super(beforeAfterComponent, objectMapper, repository);
         this.modelMapper = modelMapper;
         this.idService = idService;
+        this.memoryVectorRepository = memoryVectorRepository;
     }
 
     @Override
@@ -48,7 +54,7 @@ public class MemoryService extends DomainCrudService<Memory, MemoryDto, MemoryCr
         return Collections.emptyList();
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     @Override
     public Mono<MemoryDto> getDto(String id, User user) {
         return super.getOne(id, user);
@@ -63,5 +69,14 @@ public class MemoryService extends DomainCrudService<Memory, MemoryDto, MemoryCr
     @Override
     public BaseIdService getIdService() {
         return idService;
+    }
+
+    @Transactional(readOnly = true)
+    public Flux<MemoryDto> query(MemoryQuery query, User user) {
+        List<VectorDocument> vectorDocuments = memoryVectorRepository.query(query);
+        List<String> ids = vectorDocuments.stream()
+                .map(VectorDocument::getId)
+                .toList();
+        return getStream(ids, user);
     }
 }

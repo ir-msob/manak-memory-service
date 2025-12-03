@@ -53,13 +53,13 @@ spring:
           port: 19530
           username: "root"
           password: "milvus"
-        database-name: "default"
-        collection-name: "vector_store"
+        database-name: ${spring.application.name}
         embedding-dimension: 1536
         initialize-schema: true
         index-type: IVF_FLAT
         metric-type: COSINE
         index-parameters: '{"nlist":1024}'
+
 jima:
   feature:
     database-type: mongo
