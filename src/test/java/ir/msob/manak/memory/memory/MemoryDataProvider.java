@@ -56,7 +56,7 @@ public class MemoryDataProvider extends DomainCrudDataProvider<Memory, MemoryDto
      */
     public static MemoryDto prepareMandatoryDto() {
         MemoryDto dto = new MemoryDto();
-        dto.setTitle(DEFAULT_STRING);
+        dto.setName(DEFAULT_STRING);
         return dto;
     }
 
@@ -112,7 +112,7 @@ public class MemoryDataProvider extends DomainCrudDataProvider<Memory, MemoryDto
      */
     @Override
     public void updateMandatoryDto(MemoryDto dto) {
-        dto.setTitle(UPDATED_STRING);
+        dto.setName(UPDATED_STRING);
     }
 
     /**
@@ -130,7 +130,7 @@ public class MemoryDataProvider extends DomainCrudDataProvider<Memory, MemoryDto
     @Override
     public void assertMandatoryGet(MemoryDto before, MemoryDto after) {
         super.assertMandatoryGet(before, after);
-        Assertions.assertThat(after.getTitle()).isEqualTo(before.getTitle());
+        Assertions.assertThat(after.getName()).isEqualTo(before.getName());
     }
 
     @Override
@@ -144,8 +144,8 @@ public class MemoryDataProvider extends DomainCrudDataProvider<Memory, MemoryDto
     @Override
     public void assertMandatoryUpdate(MemoryDto dto, MemoryDto updatedDto) {
         super.assertMandatoryUpdate(dto, updatedDto);
-        Assertions.assertThat(dto.getTitle()).isEqualTo(DEFAULT_STRING);
-        Assertions.assertThat(updatedDto.getTitle()).isEqualTo(UPDATED_STRING);
+        Assertions.assertThat(dto.getName()).isEqualTo(DEFAULT_STRING);
+        Assertions.assertThat(updatedDto.getName()).isEqualTo(UPDATED_STRING);
     }
 
     @Override

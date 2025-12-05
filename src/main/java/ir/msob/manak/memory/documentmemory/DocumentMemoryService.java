@@ -121,14 +121,16 @@ public class DocumentMemoryService {
                 manakProperties.getMemory().getChunk().getChunkSize(),
                 manakProperties.getMemory().getChunk().getOverlap());
 
-        return Chunker.chunk(
-                        contentBytes,
-                        Chunker.FileType.MARKDOWN,
-                        manakProperties.getMemory().getChunk().getChunkSize(),
-                        manakProperties.getMemory().getChunk().getOverlap()
-                )
+        List<ChunkFile> chunkFiles = Chunker.chunk(
+                contentBytes,
+                Chunker.FileType.MARKDOWN,
+                manakProperties.getMemory().getChunk().getChunkSize(),
+                manakProperties.getMemory().getChunk().getOverlap()
+        );
+
+        return chunkFiles
                 .stream()
-                .map(chunk -> prepareVectorDocument(documentMemory, chunk))
+                .map(chunk -> prepareVectorDocument(documentMemory, chunk, chunkFiles.size()))
                 .toList();
     }
 
@@ -136,14 +138,17 @@ public class DocumentMemoryService {
     /**
      * Convert ChunkFile → VectorDocument
      */
-    private VectorDocument prepareVectorDocument(DocumentMemory doc, ChunkFile chunkFile) {
+    private VectorDocument prepareVectorDocument(DocumentMemory doc, ChunkFile chunkFile, Integer totalChunks) {
         return VectorDocument.builder()
                 .id(idService.newId())
                 .text(chunkFile.getText())
                 .metadata(Map.of(
                         "documentId", doc.getDocumentId(),
                         "source", doc.getFilePath(),
-                        "index", chunkFile.getIndex()
+                        "index", chunkFile.getIndex(),
+                        "startLine", chunkFile.getStartLine(),
+                        "endLine", chunkFile.getEndLine(),
+                        "totalChunks", totalChunks
                 ))
                 .build();
     }
