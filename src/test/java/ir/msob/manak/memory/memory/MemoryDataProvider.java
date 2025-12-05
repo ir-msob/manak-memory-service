@@ -8,12 +8,12 @@ import com.github.fge.jsonpatch.JsonPatch;
 import com.github.fge.jsonpatch.JsonPatchOperation;
 import com.github.fge.jsonpatch.ReplaceOperation;
 import ir.msob.jima.core.commons.id.BaseIdService;
-import org.assertj.core.api.Assertions;
 import ir.msob.manak.core.test.jima.crud.base.domain.DomainCrudDataProvider;
 import ir.msob.manak.domain.model.memory.memory.Memory;
 import ir.msob.manak.domain.model.memory.memory.MemoryCriteria;
 import ir.msob.manak.domain.model.memory.memory.MemoryDto;
 import lombok.SneakyThrows;
+import org.assertj.core.api.Assertions;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -29,12 +29,12 @@ import static ir.msob.jima.core.test.CoreTestData.UPDATED_STRING;
 @Component
 public class MemoryDataProvider extends DomainCrudDataProvider<Memory, MemoryDto, MemoryCriteria, MemoryRepository, MemoryService> {
 
+    private static MemoryDto newDto;
+    private static MemoryDto newMandatoryDto;
+
     protected MemoryDataProvider(BaseIdService idService, ObjectMapper objectMapper, MemoryService service) {
         super(idService, objectMapper, service);
     }
-
-    private static MemoryDto newDto;
-    private static MemoryDto newMandatoryDto;
 
     /**
      * Creates a new DTO object with default values.
@@ -61,6 +61,7 @@ public class MemoryDataProvider extends DomainCrudDataProvider<Memory, MemoryDto
     }
 
     /**
+     *
      */
     @Override
     @SneakyThrows
@@ -71,6 +72,7 @@ public class MemoryDataProvider extends DomainCrudDataProvider<Memory, MemoryDto
     }
 
     /**
+     *
      */
     @Override
     @SneakyThrows

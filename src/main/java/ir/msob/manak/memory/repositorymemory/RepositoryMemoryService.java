@@ -2,201 +2,52 @@ package ir.msob.manak.memory.repositorymemory;
 
 import ir.msob.jima.core.commons.logger.Logger;
 import ir.msob.jima.core.commons.logger.LoggerFactory;
-import ir.msob.jima.crud.api.restful.client.domain.DomainCrudWebClient;
 import ir.msob.manak.core.model.jima.security.User;
-import ir.msob.manak.core.service.jima.service.IdService;
 import ir.msob.manak.domain.model.memory.model.QueryRequest;
 import ir.msob.manak.domain.model.memory.model.VectorDocument;
 import ir.msob.manak.domain.model.memory.repositorymemory.RepositoryMemory;
-import ir.msob.manak.domain.model.util.chunk.ChunkFile;
-import ir.msob.manak.domain.model.util.chunk.Chunker;
 import ir.msob.manak.domain.service.client.RmsClient;
 import ir.msob.manak.domain.service.properties.ManakProperties;
-import ir.msob.manak.memory.common.SummarizerService;
+import ir.msob.manak.memory.common.ChunkService;
+import ir.msob.manak.memory.common.OverviewGenerator;
+import ir.msob.manak.memory.common.VectorDocumentFactory;
+import ir.msob.manak.memory.util.ZipExtractor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.util.*;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class RepositoryMemoryService {
 
     private static final Logger log = LoggerFactory.getLogger(RepositoryMemoryService.class);
-    // allowed extensions set (mirror of your REPO_INDEX_EXTS)
-    private static final Set<String> REPO_INDEX_EXTS = Set.of(
-            ".java", ".kt", ".xml", ".yml", ".yaml", ".properties", ".md", ".txt",
-            ".py", ".js", ".ts", ".json", ".html", ".css", ".gradle", ".groovy",
-            ".pom", ".sql", ".sh", ".bash", "dockerfile"
-    );
-    private static final Set<String> READ_ME_FILES = Set.of(
-            "README.md", "README.MD", "README", "readme.md", "readme"
-    );
+
     private final RmsClient rmsClient;
-    private final DomainCrudWebClient domainCrudWebClient;
     private final RepositoryOverviewMemoryVectorRepository overviewRepository;
     private final RepositoryChunkMemoryVectorRepository chunkRepository;
+    private final ChunkService chunkService;
+    private final VectorDocumentFactory vectorFactory;
+    private final OverviewGenerator overviewGenerator;
     private final ManakProperties manakProperties;
-    private final IdService idService;
-    private final SummarizerService summarizer;
 
-    /**
-     * Main entrypoint: loads document info, downloads file, chunks & indexes.
-     */
     public Mono<RepositoryMemory> save(RepositoryMemory dto, User user) {
         log.info("Start indexing repoId={} branch={}", dto.getRepositoryId(), dto.getBranch());
-        // Download zip as byte[] (collect DataBuffer)
-        return DataBufferUtils.join(rmsClient.downloadBranch(dto.getRepositoryId(), dto.getBranch(), user)
-                        .subscribeOn(Schedulers.boundedElastic()))
-                .map(dataBuffer -> {
-                    byte[] bytes = new byte[dataBuffer.readableByteCount()];
-                    dataBuffer.read(bytes);
-                    DataBufferUtils.release(dataBuffer);
-                    return bytes;
-                })
-                .flatMap(bytes -> {
-                    Map<String, byte[]> map = extract(bytes);
-                    List<VectorDocument> chunkVectorDocuments = chunk(dto, map);
-                    chunkRepository.save(chunkVectorDocuments);
 
-
-                    Optional<Map.Entry<String, byte[]>> overview = map.entrySet().stream()
-                            .filter(entry -> READ_ME_FILES.stream().anyMatch(s -> entry.getKey().endsWith(s)))
-                            .findFirst();
-                    overview.ifPresent(entry -> {
-                        List<VectorDocument> overviewVectorDocuments = chunk(dto, entry.getKey(), entry.getValue());
-                        List<String> strings = overviewVectorDocuments.stream()
-                                .map(VectorDocument::getText)
-                                .toList();
-                        String sumery = summarizer.summarize(strings);
-                        VectorDocument vectorDocument = VectorDocument.builder()
-                                .id(idService.newId())
-                                .text(sumery)
-                                .metadata(Map.of(
-                                        "repositoryId", dto.getRepositoryId(),
-                                        "source", entry.getKey()
-                                ))
-                                .build();
-                        overviewRepository.save(vectorDocument);
-
-                    });
-
-
-                    return Mono.just(dto);
-
-
-                })
+        return downloadZipBytes(dto, user)
+                .map(this::extractFiles)
+                .map(files -> enrichWithChunks(dto, files))
+                .map(files -> enrichWithOverview(dto, files))
+                .thenReturn(dto)
                 .doOnSuccess(r -> log.info("Indexed repository {} successfully", dto.getRepositoryId()))
                 .doOnError(e -> log.error("Failed to index repository {}: {}", dto.getRepositoryId(), e.getMessage(), e));
     }
 
-    public Map<String, byte[]> extract(byte[] zipBytes) {
-        Map<String, byte[]> fileMap = new LinkedHashMap<>();
-        try (ZipInputStream zis = new ZipInputStream(new ByteArrayInputStream(zipBytes))) {
-            ZipEntry ze;
-            while ((ze = zis.getNextEntry()) != null) {
-                if (ze.isDirectory()) continue;
-                String name = ze.getName();
-                String base = name.substring(name.lastIndexOf('/') + 1);
-                if (base.startsWith(".")) continue;
-                String ext = name.contains(".") ? name.substring(name.lastIndexOf('.')) : "";
-                if (!REPO_INDEX_EXTS.contains(ext.toLowerCase())) {
-                    log.debug("Skipping non-indexable file: {}", name);
-                    continue;
-                }
-                // read entry
-                byte[] buffer = zis.readAllBytes();
-                fileMap.put(name, buffer);
-            }
-        } catch (IOException e) {
-            log.error("Failed to unpack zip for : {}", e.getMessage(), e);
-            throw new RuntimeException("Failed to unpack repository zip", e);
-        }
-        return fileMap;
-    }
 
-    /**
-     * Chunk file content using Chunker
-     */
-    public List<VectorDocument> chunk(RepositoryMemory repositoryMemory, Map<String, byte[]> contentBytes) {
-        log.debug("Chunking repositoryId={} with chunkSize={} and overlap={}",
-                repositoryMemory.getRepositoryId(),
-                manakProperties.getMemory().getChunk().getChunkSize(),
-                manakProperties.getMemory().getChunk().getOverlap());
-
-        return contentBytes.entrySet()
-                .stream()
-                .flatMap(entry -> chunk(repositoryMemory, entry.getKey(), entry.getValue()).stream())
-                .toList();
-    }
-
-    private List<VectorDocument> chunk(RepositoryMemory repositoryMemory, String filePath, byte[] bytes) {
-        List<ChunkFile> chunkFiles = Chunker.chunk(
-                bytes,
-                prepareFileType(filePath),
-                manakProperties.getMemory().getChunk().getChunkSize(),
-                manakProperties.getMemory().getChunk().getOverlap()
-        );
-
-        return chunkFiles
-                .stream()
-                .map(chunk -> prepareVectorDocument(repositoryMemory, chunk, filePath, chunkFiles.size()))
-                .toList();
-    }
-
-    private Chunker.FileType prepareFileType(String key) {
-        if (key == null || key.isBlank()) {
-            return Chunker.FileType.GENERIC;
-        }
-
-        String fileName = key.substring(key.lastIndexOf('/') + 1);
-
-        String ext = "";
-        int dotIndex = fileName.lastIndexOf('.');
-        if (dotIndex != -1 && dotIndex < fileName.length() - 1) {
-            ext = fileName.substring(dotIndex + 1).toLowerCase();
-        }
-
-        return switch (ext) {
-            case "md" -> Chunker.FileType.MARKDOWN;
-            case "xml" -> Chunker.FileType.XML;
-            case "pom" -> Chunker.FileType.POM;
-            case "java" -> Chunker.FileType.JAVA;
-            case "yml", "yaml" -> Chunker.FileType.YAML;
-            case "properties" -> Chunker.FileType.PROPERTIES;
-            case "ts", "tsx" -> Chunker.FileType.TYPESCRIPT;
-            case "json" -> Chunker.FileType.JSON;
-            default -> Chunker.FileType.GENERIC;
-        };
-    }
-
-
-    /**
-     * Convert ChunkFile → VectorDocument
-     */
-    private VectorDocument prepareVectorDocument(RepositoryMemory repositoryMemory, ChunkFile chunkFile, String filePath, Integer totalChunks) {
-        return VectorDocument.builder()
-                .id(idService.newId())
-                .text(chunkFile.getText())
-                .metadata(Map.of(
-                        "repositoryId", repositoryMemory.getRepositoryId(),
-                        "source", filePath,
-                        "index", chunkFile.getIndex(),
-                        "startLine", chunkFile.getStartLine(),
-                        "endLine", chunkFile.getEndLine(),
-                        "totalChunks", totalChunks
-                ))
-                .build();
-    }
-
-    // Query methods (non-reactive)
     public List<VectorDocument> overviewQuery(QueryRequest request, User user) {
         log.debug("Running overviewQuery: {}", request);
         return overviewRepository.query(request);
@@ -206,4 +57,83 @@ public class RepositoryMemoryService {
         log.debug("Running chunkQuery: {}", request);
         return chunkRepository.query(request);
     }
+
+    /**
+     * Download ZIP bytes from RMS client.
+     */
+    private Mono<byte[]> downloadZipBytes(RepositoryMemory dto, User user) {
+        return DataBufferUtils.join(
+                        rmsClient.downloadBranch(dto.getRepositoryId(), dto.getBranch(), user)
+                                .subscribeOn(Schedulers.boundedElastic())
+                )
+                .map(db -> {
+                    byte[] bytes = new byte[db.readableByteCount()];
+                    db.read(bytes);
+                    DataBufferUtils.release(db);
+                    return bytes;
+                });
+    }
+
+    /**
+     * Extract indexable files from ZIP.
+     */
+    private Map<String, byte[]> extractFiles(byte[] zipBytes) {
+        return ZipExtractor.extractIndexableFiles(zipBytes, manakProperties.getMemory().getRepository().getFileExtensions());
+    }
+
+    /**
+     * Chunk all files and store them in vector DB.
+     */
+    private Map<String, byte[]> enrichWithChunks(RepositoryMemory dto, Map<String, byte[]> files) {
+
+        List<VectorDocument> chunks = files.entrySet().stream()
+                .flatMap(entry -> vectorFactory.fromChunks(
+                        "repositoryId",
+                        dto.getRepositoryId(),
+                        entry.getKey(),
+                        chunkService.chunkBytes(entry.getValue(), entry.getKey())
+                ).stream())
+                .toList();
+
+        log.debug("Saving {} chunk documents for repoId={}", chunks.size(), dto.getRepositoryId());
+        chunkRepository.save(chunks);
+
+        return files;
+    }
+
+    /**
+     * Look for README and create overview chunk.
+     */
+    private Map<String, byte[]> enrichWithOverview(RepositoryMemory dto, Map<String, byte[]> files) {
+
+        files.entrySet().stream()
+                .filter(entry -> isReadme(entry.getKey()))
+                .findFirst()
+                .ifPresent(readme -> {
+                    List<VectorDocument> readmeChunks = vectorFactory.fromChunks(
+                            "repositoryId",
+                            dto.getRepositoryId(),
+                            readme.getKey(),
+                            chunkService.chunkBytes(readme.getValue(), readme.getKey())
+                    );
+
+                    VectorDocument overview = overviewGenerator.generate(
+                            "repositoryId",
+                            dto.getRepositoryId(),
+                            readme.getKey(),
+                            readmeChunks
+                    );
+
+                    overviewRepository.save(overview);
+
+                    log.debug("Saved overview for repoId={} source={}", dto.getRepositoryId(), readme.getKey());
+                });
+
+        return files;
+    }
+
+    private boolean isReadme(String path) {
+        return manakProperties.getMemory().getRepository().getReadMeFileName().stream().anyMatch(path::endsWith);
+    }
+
 }
