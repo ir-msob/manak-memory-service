@@ -11,7 +11,7 @@ import ir.msob.manak.core.service.jima.service.IdService;
 import ir.msob.manak.domain.model.memory.memory.Memory;
 import ir.msob.manak.domain.model.memory.memory.MemoryCriteria;
 import ir.msob.manak.domain.model.memory.memory.MemoryDto;
-import ir.msob.manak.domain.model.memory.model.MemoryQuery;
+import ir.msob.manak.domain.model.memory.model.QueryRequest;
 import ir.msob.manak.domain.model.memory.model.VectorDocument;
 import jakarta.validation.Valid;
 import org.modelmapper.ModelMapper;
@@ -72,7 +72,7 @@ public class MemoryService extends DomainCrudService<Memory, MemoryDto, MemoryCr
     }
 
     @Transactional(readOnly = true)
-    public Flux<MemoryDto> query(MemoryQuery query, User user) {
+    public Flux<MemoryDto> query(QueryRequest query, User user) {
         List<VectorDocument> vectorDocuments = memoryVectorRepository.query(query);
         List<String> ids = vectorDocuments.stream()
                 .map(VectorDocument::getId)

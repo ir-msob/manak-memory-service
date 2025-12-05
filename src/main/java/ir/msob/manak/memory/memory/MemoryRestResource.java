@@ -16,7 +16,7 @@ import ir.msob.manak.core.service.jima.security.UserService;
 import ir.msob.manak.domain.model.memory.memory.Memory;
 import ir.msob.manak.domain.model.memory.memory.MemoryCriteria;
 import ir.msob.manak.domain.model.memory.memory.MemoryDto;
-import ir.msob.manak.domain.model.memory.model.MemoryQuery;
+import ir.msob.manak.domain.model.memory.model.QueryRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -53,7 +53,7 @@ public class MemoryRestResource extends DomainCrudRestResource<Memory, MemoryDto
     })
     @MethodStats
     @Scope(operation = "query")
-    public ResponseEntity<Flux<MemoryDto>> query(@RequestBody MemoryQuery query, Principal principal) throws BadRequestException, DomainNotFoundException {
+    public ResponseEntity<Flux<MemoryDto>> query(@RequestBody QueryRequest query, Principal principal) throws BadRequestException, DomainNotFoundException {
         log.debug("REST request to query , query {}, topK : {}", query.getQuery(), query.getTopK());
         User user = userService.getUser(principal);
         Flux<MemoryDto> res = this.getService().query(query, user);

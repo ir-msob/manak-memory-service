@@ -1,9 +1,7 @@
 package ir.msob.manak.memory.vectordb;
 
-import ir.msob.jima.core.commons.domain.DomainInfo;
 import ir.msob.jima.core.commons.filter.Param;
-import ir.msob.jima.core.commons.util.GenericTypeUtil;
-import ir.msob.manak.core.model.jima.domain.Domain;
+import ir.msob.manak.domain.model.memory.model.QueryRequest;
 import ir.msob.manak.domain.model.memory.model.VectorDocument;
 import ir.msob.manak.memory.util.FilterUtils;
 import org.jetbrains.annotations.NotNull;
@@ -15,8 +13,7 @@ import org.springframework.ai.vectorstore.filter.Filter;
 import java.util.List;
 import java.util.Map;
 
-
-public abstract class VectorCrudRepository<D extends Domain> {
+public abstract class VectorCrudRepository {
 
     private final VectorStore vectorStore;
 
@@ -24,16 +21,7 @@ public abstract class VectorCrudRepository<D extends Domain> {
         this.vectorStore = vectorStoreFactory.buildVectorStore(getCollectionName());
     }
 
-    private Class<D> getDomainClass() {
-        @SuppressWarnings("unchecked")
-        Class<D> domainClass = (Class<D>) GenericTypeUtil.resolveTypeArguments(getClass(), VectorCrudRepository.class, 0);
-        return domainClass;
-    }
-
-    private String getCollectionName() {
-        DomainInfo domainInfo = DomainInfo.info.getAnnotation(getDomainClass());
-        return domainInfo.domainName();
-    }
+    protected abstract String getCollectionName();
 
     public void save(String id, String text, Map<String, Object> metadata) {
         VectorDocument document = prepareDocument(id, text, metadata);
@@ -111,7 +99,6 @@ public abstract class VectorCrudRepository<D extends Domain> {
                 .toList();
     }
 
-
     public List<VectorDocument> query(String query, Integer topK, Double similarityThreshold, Map<String, Param<?>> filterParams) {
 
         Filter.Expression filter = FilterUtils.buildFilterFromParams(filterParams);
@@ -133,4 +120,10 @@ public abstract class VectorCrudRepository<D extends Domain> {
                 .toList();
     }
 
+    public List<VectorDocument> query(QueryRequest query) {
+        if (query == null) {
+            throw new IllegalArgumentException("query must not be null");
+        }
+        return query(query.getQuery(), query.getTopK(), query.getSimilarityThreshold(), query.getMetadata());
+    }
 }

@@ -52,11 +52,11 @@ public class MemoryVectorBeforeAfter implements BeforeAfterDomainOperation<Memor
                 .findFirst()
                 .map(rd -> {
                     Map<String, String> map = new HashMap<>();
-                    if (Strings.isNotBlank(rd.getName())) map.put("sourceName", rd.getName());
-                    if (Strings.isNotBlank(rd.getRelatedId())) map.put("sourceId", rd.getRelatedId());
+                    if (Strings.isNotBlank(rd.getName())) map.put(FN.sourceName.name(), rd.getName());
+                    if (Strings.isNotBlank(rd.getRelatedId())) map.put(FN.sourceId.name(), rd.getRelatedId());
                     if (Strings.isNotBlank(rd.getReferringType()))
-                        map.put("sourceReferringType", rd.getReferringType());
-                    if (Strings.isNotBlank(rd.getRelatedId())) map.put("sourceRelatedId", rd.getRelatedId());
+                        map.put(FN.sourceReferringType.name(), rd.getReferringType());
+                    if (Strings.isNotBlank(rd.getRelatedId())) map.put(FN.sourceRelatedId.name(), rd.getRelatedId());
                     return map;
                 })
                 .orElse(new HashMap<>());
@@ -75,4 +75,10 @@ public class MemoryVectorBeforeAfter implements BeforeAfterDomainOperation<Memor
                 .build();
     }
 
+    public enum FN {
+        sourceName,
+        sourceId,
+        sourceReferringType,
+        sourceRelatedId
+    }
 }

@@ -60,6 +60,7 @@ spring:
         metric-type: COSINE
         index-parameters: '{"nlist":1024}'
 
+
 jima:
   feature:
     database-type: mongo
