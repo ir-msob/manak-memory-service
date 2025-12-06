@@ -15,6 +15,7 @@ import ir.msob.manak.memory.util.ZipExtractor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
@@ -48,14 +49,14 @@ public class RepositoryMemoryService {
     }
 
 
-    public List<VectorDocument> overviewQuery(QueryRequest request, User user) {
+    public Flux<VectorDocument> overviewQuery(QueryRequest request, User user) {
         log.debug("Running overviewQuery: {}", request);
-        return overviewRepository.query(request);
+        return Flux.fromIterable(overviewRepository.query(request));
     }
 
-    public List<VectorDocument> chunkQuery(QueryRequest request, User user) {
+    public Flux<VectorDocument> chunkQuery(QueryRequest request, User user) {
         log.debug("Running chunkQuery: {}", request);
-        return chunkRepository.query(request);
+        return Flux.fromIterable(chunkRepository.query(request));
     }
 
     /**

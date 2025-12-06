@@ -8,14 +8,15 @@ import ir.msob.manak.domain.model.memory.documentmemory.DocumentMemory;
 import ir.msob.manak.domain.model.memory.model.QueryRequest;
 import ir.msob.manak.domain.model.memory.model.VectorDocument;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.security.Principal;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/document-memory")
@@ -27,23 +28,26 @@ public class DocumentMemoryController {
     private final UserService userService;
 
     @PostMapping
-    public Mono<DocumentMemory> save(@RequestBody DocumentMemory dto, Principal principal) {
+    public ResponseEntity<Mono<DocumentMemory>> save(@RequestBody DocumentMemory dto, Principal principal) {
         logger.debug("REST request to add document-memory, documentId: {}", dto.getDocumentId());
         User user = userService.getUser(principal);
-        return service.save(dto, user);
+        Mono<DocumentMemory> res = service.save(dto, user);
+        return ResponseEntity.ok(res);
     }
 
     @PostMapping("/overview/query")
-    public List<VectorDocument> overviewQuery(@RequestBody QueryRequest query, Principal principal) {
+    public ResponseEntity<Flux<VectorDocument>> overviewQuery(@RequestBody QueryRequest query, Principal principal) {
         logger.debug("REST request to document overview-query, query: {}, topK: {}", query.getQuery(), query.getTopK());
         User user = userService.getUser(principal);
-        return service.overviewQuery(query, user);
+        Flux<VectorDocument> res = service.overviewQuery(query, user);
+        return ResponseEntity.ok(res);
     }
 
     @PostMapping("/chunk/query")
-    public List<VectorDocument> chunkQuery(@RequestBody QueryRequest query, Principal principal) {
+    public ResponseEntity<Flux<VectorDocument>> chunkQuery(@RequestBody QueryRequest query, Principal principal) {
         logger.debug("REST request to document chunk-query, query: {}, topK: {}", query.getQuery(), query.getTopK());
         User user = userService.getUser(principal);
-        return service.chunkQuery(query, user);
+        Flux<VectorDocument> res = service.chunkQuery(query, user);
+        return ResponseEntity.ok(res);
     }
 }

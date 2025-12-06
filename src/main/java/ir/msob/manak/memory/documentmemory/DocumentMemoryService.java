@@ -18,6 +18,7 @@ import ir.msob.manak.memory.common.VectorDocumentFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
@@ -47,14 +48,14 @@ public class DocumentMemoryService {
                 .doOnError(e -> log.error("Failed saving document memory documentId={}: {}", dto.getDocumentId(), e.getMessage(), e));
     }
 
-    public List<VectorDocument> overviewQuery(QueryRequest request, User user) {
+    public Flux<VectorDocument> overviewQuery(QueryRequest request, User user) {
         log.debug("overviewQuery {}", request);
-        return overviewRepository.query(request);
+        return Flux.fromIterable(overviewRepository.query(request));
     }
 
-    public List<VectorDocument> chunkQuery(QueryRequest request, User user) {
+    public Flux<VectorDocument> chunkQuery(QueryRequest request, User user) {
         log.debug("chunkQuery {}", request);
-        return chunkRepository.query(request);
+        return Flux.fromIterable(chunkRepository.query(request));
     }
 
 
